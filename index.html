@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Yağmur Yün Muavin Programı</title>
+<style>
+:root{--bg:#f3f6f8;--card:#fff;--nav:#153b4d;--accent:#0d7c86;--red:#b42318;--green:#067647;--line:#d8e0e5;--text:#17212b;--muted:#667085}
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(135deg,var(--nav),#22647a);color:#fff;padding:18px 16px;position:sticky;top:0;z-index:5;box-shadow:0 2px 10px #0002}
+header h1{font-size:19px;margin:0 0 4px} header p{margin:0;opacity:.82;font-size:12px}
+main{max-width:1450px;margin:auto;padding:14px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+button,.btn{border:0;border-radius:10px;padding:10px 13px;font-weight:650;cursor:pointer;background:#e7eef2;color:#193746}
+button.primary{background:var(--accent);color:#fff}.tab.active{background:var(--nav);color:white}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;box-shadow:0 1px 5px #00000008}
+.kpi .label{font-size:12px;color:var(--muted)}.kpi .value{font-size:23px;font-weight:800;margin-top:5px}.positive{color:var(--red)}.negative{color:var(--green)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.toolbar input,.toolbar select{padding:10px;border:1px solid var(--line);border-radius:9px;background:white;min-width:150px}
+.table-wrap{overflow:auto;background:white;border:1px solid var(--line);border-radius:14px;max-height:62vh}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:1100px;font-size:12px}
+th{position:sticky;top:0;background:#eaf1f4;color:#183846;text-align:left;padding:10px;border-bottom:1px solid var(--line);z-index:2}
+td{padding:8px 10px;border-bottom:1px solid #edf1f3;vertical-align:top}tr:hover td{background:#f8fbfc}
+.num{text-align:right;font-variant-numeric:tabular-nums}.desc{max-width:430px;white-space:normal}.actions{white-space:nowrap}
+.modal{display:none;position:fixed;inset:0;background:#0007;z-index:20;padding:16px;overflow:auto}.modal.show{display:flex;align-items:center;justify-content:center}
+.modal-card{background:#fff;border-radius:16px;padding:18px;width:min(760px,100%);max-height:95vh;overflow:auto}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px}.field textarea{min-height:84px}.wide{grid-column:1/-1}
+.footer-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.small{font-size:11px;color:var(--muted);margin:8px 2px}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.wide{grid-column:auto}main{padding:9px}.kpi .value{font-size:18px}}
+@media print{header,.tabs,.toolbar,.actions,.small{display:none!important}body{background:#fff}main{max-width:none;padding:0}.table-wrap{max-height:none;overflow:visible;border:0}table{font-size:9px;min-width:0}.card{box-shadow:none;border:0}.grid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>YAĞMUR YÜN — MUAVİN HESAP PROGRAMI</h1><p>Fason yıkama USD ve KDV/TL cari takibi • Veriler bu cihazda otomatik saklanır</p></header>
+<main>
+<div class="tabs">
+<button class="tab active" data-tab="usd">Fason Yıkama Cari (USD)</button>
+<button class="tab" data-tab="tl">KDV Cari (TL)</button>
+</div>
+<div class="grid" id="kpis"></div>
+<div class="toolbar">
+<button class="primary" id="addBtn">+ Yeni Kayıt</button>
+<input id="search" placeholder="Ara: firma, fiş, açıklama...">
+<select id="typeFilter"><option value="">Tüm işlem tipleri</option></select>
+<button id="exportBtn">Yedek Al</button>
+<label class="btn">Yedek Yükle<input id="importFile" type="file" accept=".json" hidden></label>
+<button onclick="window.print()">Yazdır / PDF</button>
+<button id="resetBtn">İlk Veriye Dön</button>
+</div>
+<div class="small">Bakiye, borç ve ödeme alanlarından otomatik hesaplanır. Kayıtlar tarayıcının yerel hafızasında tutulur.</div>
+<div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+</main>
+
+<div class="modal" id="modal"><div class="modal-card">
+<h2 id="modalTitle">Yeni Kayıt</h2>
+<form id="entryForm"><div class="form-grid" id="formFields"></div>
+<div class="footer-actions"><button type="button" id="cancelBtn">Vazgeç</button><button type="submit" class="primary">Kaydet</button></div></form>
+</div></div>
+
+<script>
+const INITIAL_DATA = {"usd": [["2026-01-01", "AÇILIŞ BAKİYESİ", "1", "DEVİR 2025", "", 1, 17328.18, 17328.18, 0], ["2026-01-13", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 2, 401, 0.65, 260.65, 0], ["2026-01-21", "ÖDEME", "K. KARTI", "LAZGİN ÖZGÖR (ERCAN ELEKTRİK 65.830 TL KUR: 43,00 TL)", "", 0, 0, 0, 1530], ["2026-01-22", "ÖDEME", "BANKA", "ALİ BARAN ÇİÇEK KUVEYTTÜRK", "", 0, 0, 0, 10000], ["2026-01-20", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 80, 20830, 0.75, 15622.5, 0], ["2026-01-24", "ÖDEME", "NAKİT", "YAKUP YALÇIN DÜĞÜN 43.478 TL", "", 0, 0, 0, 23], ["2026-01-28", "ÖDEME", "BANKA", "YAĞMUR YÜN ENERJİ DENİZBANK 10.000 TL KUR: 43,621 TL", "", 0, 0, 0, 230], ["2026-01-27", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 47, 12406, 0.75, 9304.5, 0], ["2026-01-30", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 50, 13227, 0.75, 9920.25, 0], ["2026-02-02", "ÖDEME", "SGK", "KARTTAN LAZGİN 144,297,61 TL KUR: 43,661 TL", "", 0, 0, 0, 3304], ["2026-02-03", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 35, 9235, 0.75, 6926.25, 0], ["2026-02-03", "ÖDEME KOTHARI", "İHRACAT-1", "KOTHARI 18.000 USD HİNDİSTANDAN GELEN PARADAN 11.900 USD BİZE GEÇTİ", "", 0, 0, 0, 11900], ["2026-02-06", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 43, 11050, 0.75, 8287.5, 0], ["2026-02-16", "ÖDEME", "BANKA", "ALİ BARAN ÇİÇEK KUVEYTTÜRK", "", 0, 0, 0, 10000], ["2026-02-17", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 48, 12398, 0.75, 9298.5, 0], ["2025-03-25", "ÖDEME", "RÇİ", "7000 HESABA+3000 USD ÖDEDİ", "", 0, 0, 0, 10000], ["2026-02-21", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 39, 9990, 0.75, 7492.5, 0], ["2026-03-05", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 27, 6718, 0.75, 5038.5, 0], ["2026-03-06", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 93, 23505, 0.75, 17628.75, 0], ["2026-03-12", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 26, 6080, 0.75, 4560, 0], ["2026-03-26", "ÖDEME KOTHARI", "İHRACAT-1", "KOTHARİ GELEN PARA 56.298 USD; 3.356 USD GÜMRÜK MASRAFI DÜŞÜLDÜ", "", 0, 0, 0, 52942], ["2026-03-26", "ÖDEME SURANA", "İHRACAT-2", "SURANA 10.000 USD; 447 USD YAKUP YALÇIN", "", 0, 0, 0, 447], ["2026-03-26", "ÖDEME KOPEX", "İHRACAT-4", "KOPEX 20.000 USD; 600 USD YAKUP YALÇIN", "", 0, 0, 0, 600], ["2026-03-26", "KDV BORCU", "3 FATURA", "KDV BORCU HESABA EKLENDİ", "", 1, 12178.24, 12178.24, 0], ["2026-03-23", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 71, 18371, 0.75, 13778.25, 0], ["2026-03-27", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 21, 5157, 0.75, 3867.75, 0], ["2026-03-29", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 47, 11550, 0.75, 8662.5, 0], ["2026-04-04", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 36, 8434, 0.75, 6325.5, 0], ["2026-04-08", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 47, 11534, 0.75, 8650.5, 0], ["2026-04-11", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 26, 6227, 0.75, 4670.25, 0], ["2026-04-13", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 109, 26658, 0.75, 19993.5, 0], ["2026-04-20", "ÖDEME SURANA", "İHRACAT-2", "SURANA GELEN PARA; 44.994 USD YAKUP YALÇIN", "", 0, 0, 0, 44994], ["2026-04-20", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 49, 12036, 0.75, 9027, 0], ["2026-04-22", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 44, 10723, 0.75, 8042.25, 0], ["2026-04-23", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 12, 3027, 0.75, 2270.25, 0], ["2026-04-30", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 45, 10123, 0.75, 7592.25, 0], ["2026-04-30", "ÖDEME LAXMI", "İHRACAT-3", "LAXMI GELEN PARA; 37.401 USD YAKUP YALÇIN", "", 0, 0, 0, 37401], ["2026-05-07", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 49, 11742, 0.75, 8806.5, 0], ["2026-05-11", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 51, 12461, 0.75, 9345.75, 0], ["2026-05-21", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 42, 10803, 0.75, 8102.25, 0], ["2026-05-23", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 87, 22000, 0.75, 16500, 0], ["2026-06-05", "ÖDEME KAPOTEX", "İHRACAT-4", "KAPOTEX FİRMASINDAN GELEN PARAYI YAKUP YALÇIN ALDI", "", 0, 0, 0, 55482.2], ["2026-06-05", "HİNDİSTAN", "ADİTYA", "ADİTYANIN BİZDEN DÜŞTÜĞÜ PARA", "", 0, 0, 0, 400], ["2026-06-10", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 66, 15841, 0.75, 11880.75, 0], ["2026-06-12", "FASON YIKAMA", "RÇD", "DOMASTİK TABAK YÜNÜ", 51, 12921, 0.75, 9690.75, 0], ["2026-06-15", "ÖDEME", "BANKA", "YAĞMUR KİMYAYA ÖDEME VERİLDİ", "", 0, 0, 0, 10000], ["2026-06-19", "ÖDEME", "BANKA", "ELDEN ÖDEME VERİLDİ", "", 0, 0, 0, 30000], ["2025-06-25", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 62, 15430, 0.75, 11572.5, 0], ["2026-07-06", "ÖDEME", "ELDEN", "49.145 USD ALINAN PARADAN MAHSUP", "", 0, 0, 0, 633], ["2026-07-02", "FASON YIKAMA", "RÇİ", "İNGİLİZ TABAK YÜNÜ", 89, 21681, 0.75, 16260.75, 0], ["2026-07-02", "ÖDEME", "SAMET", "MALDAN KALAN KISIM", "", 0, 0, 0, 100], ["2026-07-02", "ÖDEME", "KART", "65.850 TL KUDRET EREN BEYAZ EŞYA", "", 0, 0, 0, 1530], ["2026-08-09", "ELDEN ALINAN", "", "49.000 USD'DEN KALAN ÖDENMEYEN 9.000 USD VE 150.000 TL MAL ALIŞI", "", 0, 0, 0, 12225]], "tl": [["2026-02-03", "FASON HİZMET FATURASI", "YMA002", "E ARŞİV FATURA KDV ALİ BARAN İHRACAT FASON YIKAMA FATURASI", 174603, 43.743, 3991.564365, 0], ["2026-03-04", "FASON HİZMET FATURASI", "YMA004", "E ARŞİV FATURA KDV ALİ BARAN İHRACAT FASON YIKAMA FATURASI", 188280, 44.198, 4259.921263, 0], ["2026-03-17", "FASON HİZMET FATURASI", "YMY010", "E FATURA KDV LAZGİN ÖZGÖR İHRACAT FASON YIKAMA FATURASI", 174630.6, 44.472, 3926.753913, 0], ["2026-03-26", "ÖDEME", "", "KDV BORCU 12.178,24 USD OLARAK FASON SAYFASINA YAZILARAK DÜŞÜLDÜ", 0, 0, 0, 537513.6]]};
+let db = JSON.parse(localStorage.getItem('yagmur_muavin_db') || 'null') || structuredClone(INITIAL_DATA);
+let active='usd', editingIndex=null;
+const fmt=(n,currency='')=> new Intl.NumberFormat('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0))+(currency?' '+currency:'');
+const save=()=>localStorage.setItem('yagmur_muavin_db',JSON.stringify(db));
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+function schema(){
+return active==='usd' ? [
+['date','Tarih','date'],['type','Tip','text'],['voucher','Fiş No','text'],['description','Açıklama','textarea'],
+['press','Pres Sayısı','number'],['kg','Yıkanan KG','number'],['price','Fason Fiyatı','number'],['debit','Fason Borç','number'],['payment','Ödeme','number']
+] : [
+['date','Tarih','date'],['type','Tip','text'],['voucher','Fiş No','text'],['description','Açıklama','textarea'],
+['debitTL','Borç TL','number'],['rate','Kur','number'],['debitUSD','Borç USD','number'],['payment','Ödeme TL','number']
+]}
+function asObj(r){let keys=schema().map(x=>x[0]);return Object.fromEntries(keys.map((k,i)=>[k,r[i]??'']))}
+function computeRows(){
+let bal=0; return db[active].map((r,i)=>{let o=asObj(r); let debit=active==='usd'?Number(o.debit||0):Number(o.debitTL||0); let pay=Number(o.payment||0); bal+=debit-pay; return {...o,balance:bal,index:i}})
+}
+function render(){
+let rows=computeRows(), q=document.getElementById('search').value.toLowerCase(), f=document.getElementById('typeFilter').value;
+let filtered=rows.filter(r=>(!q||Object.values(r).join(' ').toLowerCase().includes(q))&&(!f||r.type===f));
+let types=[...new Set(rows.map(r=>r.type).filter(Boolean))].sort();
+let sel=document.getElementById('typeFilter'), old=sel.value; sel.innerHTML='<option value="">Tüm işlem tipleri</option>'+types.map(t=>`<option>${esc(t)}</option>`).join(''); sel.value=old;
+let totalDebit=rows.reduce((s,r)=>s+(active==='usd'?Number(r.debit||0):Number(r.debitTL||0)),0);
+let totalPay=rows.reduce((s,r)=>s+Number(r.payment||0),0), bal=totalDebit-totalPay;
+let totalKg=active==='usd'?rows.reduce((s,r)=>s+Number(r.kg||0),0):rows.reduce((s,r)=>s+Number(r.debitUSD||0),0);
+document.getElementById('kpis').innerHTML=`
+<div class="card kpi"><div class="label">Toplam Borç</div><div class="value">${fmt(totalDebit,active==='usd'?'USD':'TL')}</div></div>
+<div class="card kpi"><div class="label">Toplam Ödeme</div><div class="value">${fmt(totalPay,active==='usd'?'USD':'TL')}</div></div>
+<div class="card kpi"><div class="label">Güncel Bakiye</div><div class="value ${bal>=0?'positive':'negative'}">${fmt(Math.abs(bal),active==='usd'?'USD':'TL')} ${bal>=0?'BORÇ':'ALACAK'}</div></div>
+<div class="card kpi"><div class="label">${active==='usd'?'Toplam Yıkanan':'Toplam Borç USD'}</div><div class="value">${fmt(totalKg,active==='usd'?'KG':'USD')}</div></div>`;
+let headers=active==='usd'?['Tarih','Tip','Fiş No','Açıklama','Pres','KG','Fiyat','Borç USD','Ödeme USD','Bakiye','B/A','İşlem']:['Tarih','Tip','Fiş No','Açıklama','Borç TL','Kur','Borç USD','Ödeme TL','Bakiye','B/A','İşlem'];
+document.getElementById('thead').innerHTML='<tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+document.getElementById('tbody').innerHTML=filtered.map(r=>active==='usd'?`<tr>
+<td>${esc(r.date)}</td><td>${esc(r.type)}</td><td>${esc(r.voucher)}</td><td class="desc">${esc(r.description)}</td>
+<td class="num">${r.press?fmt(r.press):''}</td><td class="num">${r.kg?fmt(r.kg):''}</td><td class="num">${r.price?fmt(r.price):''}</td>
+<td class="num">${r.debit?fmt(r.debit):''}</td><td class="num">${r.payment?fmt(r.payment):''}</td><td class="num"><b>${fmt(r.balance)}</b></td><td>${r.balance>=0?'B':'A'}</td>
+<td class="actions"><button onclick="editRow(${r.index})">Düzenle</button> <button onclick="delRow(${r.index})">Sil</button></td></tr>`:`<tr>
+<td>${esc(r.date)}</td><td>${esc(r.type)}</td><td>${esc(r.voucher)}</td><td class="desc">${esc(r.description)}</td>
+<td class="num">${r.debitTL?fmt(r.debitTL):''}</td><td class="num">${r.rate?fmt(r.rate):''}</td><td class="num">${r.debitUSD?fmt(r.debitUSD):''}</td>
+<td class="num">${r.payment?fmt(r.payment):''}</td><td class="num"><b>${fmt(r.balance)}</b></td><td>${r.balance>=0?'B':'A'}</td>
+<td class="actions"><button onclick="editRow(${r.index})">Düzenle</button> <button onclick="delRow(${r.index})">Sil</button></td></tr>`).join('');
+}
+function openModal(index=null){
+editingIndex=index; let o=index===null?{}:asObj(db[active][index]);
+document.getElementById('modalTitle').textContent=index===null?'Yeni Kayıt':'Kaydı Düzenle';
+document.getElementById('formFields').innerHTML=schema().map(([k,l,t])=>`<div class="field ${t==='textarea'?'wide':''}"><label>${l}</label>${t==='textarea'?`<textarea name="${k}">${esc(o[k]||'')}</textarea>`:`<input name="${k}" type="${t}" step="any" value="${esc(o[k]||'')}">`}</div>`).join('');
+document.getElementById('modal').classList.add('show');
+}
+function editRow(i){openModal(i)}
+function delRow(i){if(confirm('Bu kayıt silinsin mi?')){db[active].splice(i,1);save();render()}}
+document.getElementById('entryForm').onsubmit=e=>{e.preventDefault();let fd=new FormData(e.target);let row=schema().map(([k,,t])=>t==='number'?Number(fd.get(k)||0):fd.get(k));if(editingIndex===null)db[active].push(row);else db[active][editingIndex]=row;save();document.getElementById('modal').classList.remove('show');render()}
+document.getElementById('addBtn').onclick=()=>openModal(); document.getElementById('cancelBtn').onclick=()=>document.getElementById('modal').classList.remove('show');
+document.getElementById('search').oninput=render;document.getElementById('typeFilter').onchange=render;
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');active=b.dataset.tab;render()});
+document.getElementById('exportBtn').onclick=()=>{let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Yagmur_Yun_Muavin_Yedek.json';a.click();URL.revokeObjectURL(a.href)}
+document.getElementById('importFile').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.usd||!x.tl)throw 0;db=x;save();render();alert('Yedek yüklendi.')}catch{alert('Geçersiz yedek dosyası.')}};r.readAsText(f)}
+document.getElementById('resetBtn').onclick=()=>{if(confirm('Tüm değişiklikler silinip ilk Excel verisine dönülsün mü?')){db=structuredClone(INITIAL_DATA);save();render()}}
+render();
+</script></body></html>
